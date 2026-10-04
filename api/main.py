@@ -2292,6 +2292,7 @@ def get_schedule():
                 JOIN match_statuses ms
                     ON m.status_id = ms.status_id
                 WHERE ms.status_name IN ('SCHEDULED', 'PROPOSED')
+                AND m.scheduled_at >= CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
                 ORDER BY m.scheduled_at ASC;
                 """
             )
