@@ -1805,7 +1805,7 @@ async def view_schedule(
 
     async with aiohttp.ClientSession() as session:
         async with session.get(
-            f"{apiURL}/matches/schedule"
+            f"{apiURL}/schedule"
         ) as response:
 
             data = await response.json()

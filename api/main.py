@@ -2269,7 +2269,7 @@ def get_team_by_discord_role(discord_role_id: int):
         "team_name": team[1]
     }
 
-@app.get("/matches/schedule")
+@app.get("/schedule")
 def get_schedule():
 
     with get_connection() as conn:
