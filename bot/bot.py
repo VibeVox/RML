@@ -1799,14 +1799,13 @@ async def schedule_match(
     description = "View all proposed and scheduled RML matches."
 )
 async def view_schedule(
-    self,
     interaction: discord.Interaction
 ):
     await interaction.response.defer(ephemeral = False)
 
     async with aiohttp.ClientSession() as session:
         async with session.get(
-            f"{self.bot.apiURL}/matches/schedule"
+            f"{apiURL}/matches/schedule"
         ) as response:
 
             data = await response.json()
