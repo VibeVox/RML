@@ -1,8 +1,9 @@
 import os, discord, aiohttp, re
 from discord import app_commands
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 
 # Bot setup
 load_dotenv()
@@ -62,6 +63,139 @@ async def ping(
 
 
 # Helper definitions
+
+class ScheduleView(discord.ui.View):
+    def __init__(self, matches, per_page = 5):
+        super().__init__(timeout = 300)
+
+        self.matches = matches
+        self.per_page = per_page
+        self.current_page = 0
+
+        self.total_pages = max(
+            1,
+            (len(matches) + per_page - 1) // per_page
+        )
+
+        self.update_buttons()
+
+
+    def build_embed(self):
+        start = self.current_page * self.per_page
+        end = start + self.per_page
+
+        page_matches = self.matches[start:end]
+
+        embed = discord.Embed(
+            title = "RML Schedule",
+            description = (
+                f"Page {self.current_page + 1} "
+                f"of {self.total_pages}"
+            )
+        )
+
+        if not page_matches:
+            embed.description = (
+                "There are no proposed or scheduled matches."
+            )
+
+            return embed
+
+        for match in page_matches:
+            home_approval = (
+                "✅"
+                if match["home_approved"]
+                else "❌"
+            )
+
+            away_approval = (
+                "✅"
+                if match["away_approved"]
+                else "❌"
+            )
+
+            scheduled_at = datetime.fromisoformat(
+                match["scheduled_at"]
+            )
+
+            # The old database stores the time as UTC,
+            # but without timezone information attached.
+            scheduled_at = scheduled_at.replace(
+                tzinfo = timezone.utc
+            )
+
+            unix_timestamp = int(
+                scheduled_at.timestamp()
+            )
+
+            embed.add_field(
+                name = (
+                    f"Match #{match['match_id']} — "
+                    f"{match['home_team']} vs "
+                    f"{match['away_team']}"
+                ),
+                value = (
+                    f"**When:** <t:{unix_timestamp}:F>\n"
+                    f"**Starts:** <t:{unix_timestamp}:R>\n"
+                    f"**Status:** {match['status']}\n"
+                    f"**Approvals:** "
+                    f"{home_approval} Home | "
+                    f"{away_approval} Away"
+                ),
+                inline = False
+            )
+
+        return embed
+
+
+    def update_buttons(self):
+        self.previous_button.disabled = (
+            self.current_page == 0
+        )
+
+        self.next_button.disabled = (
+            self.current_page >= self.total_pages - 1
+        )
+
+
+    @discord.ui.button(
+        label = "Previous",
+        style = discord.ButtonStyle.secondary
+    )
+    async def previous_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        if self.current_page > 0:
+            self.current_page -= 1
+
+        self.update_buttons()
+
+        await interaction.response.edit_message(
+            embed = self.build_embed(),
+            view = self
+        )
+
+
+    @discord.ui.button(
+        label = "Next",
+        style = discord.ButtonStyle.secondary
+    )
+    async def next_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+
+        self.update_buttons()
+
+        await interaction.response.edit_message(
+            embed = self.build_embed(),
+            view = self
+        )
 
 # List for help command
 
@@ -1659,7 +1793,40 @@ async def schedule_match(
         view=view
     )
 
+# View the schedule
+@app_commands.command(
+    name = "view_schedule",
+    description = "View all proposed and scheduled RML matches."
+)
+async def view_schedule(
+    self,
+    interaction: discord.Interaction
+):
+    await interaction.response.defer(ephemeral = False)
 
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"{self.bot.apiURL}/matches/schedule"
+        ) as response:
+
+            data = await response.json()
+
+            if response.status != 200:
+                await interaction.followup.send(
+                    data.get(
+                        "detail",
+                        "Something went wrong while loading the schedule."
+                    ),
+                    ephemeral = True
+                )
+                return
+
+    view = ScheduleView(data)
+
+    await interaction.followup.send(
+        embed = view.build_embed(),
+        view = view
+    )
 
 
 # Signings

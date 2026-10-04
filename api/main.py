@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from api.database import get_connection
 from datetime import datetime, date
 from typing import Optional
+from zoneinfo import ZoneInfo
 import re
 
 # To run, use this command: uvicorn api.main:app --reload
@@ -2268,4 +2269,44 @@ def get_team_by_discord_role(discord_role_id: int):
         "team_name": team[1]
     }
 
+@app.get("/matches/schedule")
+def get_schedule():
 
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    m.match_id,
+                    home.team_name AS home_team,
+                    away.team_name AS away_team,
+                    m.scheduled_at,
+                    ms.status_name,
+                    m.home_approved,
+                    m.away_approved
+                FROM matches m
+                JOIN teams home
+                    ON m.home_team_id = home.team_id
+                JOIN teams away
+                    ON m.away_team_id = away.team_id
+                JOIN match_statuses ms
+                    ON m.status_id = ms.status_id
+                WHERE ms.status_name IN ('SCHEDULED', 'PROPOSED')
+                ORDER BY m.scheduled_at ASC;
+                """
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "match_id": row[0],
+            "home_team": row[1],
+            "away_team": row[2],
+            "scheduled_at": row[3],
+            "status": row[4],
+            "home_approved": row[5],
+            "away_approved": row[6]
+        }
+        for row in rows
+    ]
