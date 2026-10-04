@@ -1794,7 +1794,7 @@ async def schedule_match(
     )
 
 # View the schedule
-@app_commands.command(
+@tree.command(
     name = "view_schedule",
     description = "View all proposed and scheduled RML matches."
 )
